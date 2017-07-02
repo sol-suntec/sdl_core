@@ -82,7 +82,14 @@ class UsbConnection : public Connection {
   unsigned char* in_buffer_;
   libusb_transfer* in_transfer_;
   libusb_transfer* out_transfer_;
-
+  //proposal sol
+  bool multimsg_;
+  uint8_t* total_data_;
+  uint32_t total_data_size_;
+  uint8_t frameType_;
+  uint8_t serviceType_;
+  uint8_t frameData_;
+  
   std::list<protocol_handler::RawMessagePtr> out_messages_;
   protocol_handler::RawMessagePtr current_out_message_;
   sync_primitives::Lock out_messages_mutex_;

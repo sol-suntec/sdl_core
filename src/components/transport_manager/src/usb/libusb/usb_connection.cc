@@ -66,18 +66,27 @@ UsbConnection::UsbConnection(const DeviceUID& device_uid,
     , in_buffer_(NULL)
     , in_transfer_(NULL)
     , out_transfer_(0)
+    //proposal sol
+    , multimsg_(false)
+    , total_data_(NULL)
+    , total_data_size_(0)
+    , frameType_(0x00)
+    , serviceType_(0x00)
+    , frameData_(0x00) 
     , out_messages_()
     , current_out_message_()
     , bytes_sent_(0)
     , disconnecting_(false)
     , waiting_in_transfer_cancel_(false)
-    , waiting_out_transfer_cancel_(false) {}
+    , waiting_out_transfer_cancel_(false)
+{}
 
 UsbConnection::~UsbConnection() {
   LOG4CXX_TRACE(logger_, "enter with this" << this);
   Finalise();
   libusb_free_transfer(in_transfer_);
   delete[] in_buffer_;
+  delete[] total_data_;
   LOG4CXX_TRACE(logger_, "exit");
 }
 
@@ -131,10 +140,67 @@ void UsbConnection::OnInTransfer(libusb_transfer* transfer) {
                   "USB incoming transfer, size:"
                       << transfer->actual_length << ", data:"
                       << hex_data(transfer->buffer, transfer->actual_length));
-    ::protocol_handler::RawMessagePtr data(new protocol_handler::RawMessage(
-        0, 0, in_buffer_, transfer->actual_length));
-    controller_->DataReceiveDone(device_uid_, app_handle_, data);
-  } else {
+    //proposal sol
+
+    uint8_t* data;
+    if (in_buffer_ && transfer->actual_length > 0) {
+      data = new uint8_t[transfer->actual_length];
+      memcpy(data, in_buffer_, sizeof(*data) * transfer->actual_length);
+
+      frameType_ = data[0] & 0x07u;
+      serviceType_ = data[1];
+      frameData_ = data[2];
+
+      //0x02 FRAME_TYPE_FIRST
+      switch (frameType_) {
+        case 0x00://FRAME_TYPE_CONTROL
+          LOG4CXX_DEBUG(logger_, "FRAME_TYPE_CONTROL");
+          multimsg_ = false;
+          memcpy(total_data_, data, sizeof(*data) * transfer->actual_length);
+        case 0x01://FRAME_TYPE_SINGLE
+          LOG4CXX_DEBUG(logger_, "FRAME_TYPE_SINGLE");
+          multimsg_ = false;
+          memcpy(total_data_, data, sizeof(*data) * transfer->actual_length);
+        case 0x02://FRAME_TYPE_FIRST
+          multimsg_ = true;
+          memcpy(total_data_, data, sizeof(*data) * transfer->actual_length);
+          total_data_size_ = sizeof(*data) * transfer->actual_length;
+        case 0x03://FRAME_TYPE_CONSECUTIVE
+          LOG4CXX_DEBUG(logger_, "FRAME_TYPE_FIRST or FRAME_TYPE_CONSECUTIVE");
+          //0x00 FRAME_INFO_FINAL_CONNESCUTIVE_FRAME
+          if (0x00 == frameData_) {
+            multimsg_ = false;
+          }
+          memcpy(total_data_+total_data_size_, data, sizeof(*data) * transfer->actual_length);
+          total_data_size_ += sizeof(*data) * transfer->actual_length;
+        
+        default: {
+          LOG4CXX_DEBUG(logger_, "Unknown frame type" << frameType_);
+          controller_->DataReceiveFailed(
+          device_uid_, app_handle_, DataReceiveError());
+        }
+      }
+
+      delete[] data;
+
+      if (multimsg_) {
+
+      }
+      else {
+        //end of proposal sol
+        ::protocol_handler::RawMessagePtr msg(new protocol_handler::RawMessage(
+            0, 0, total_data_, total_data_size_));
+        controller_->DataReceiveDone(device_uid_, app_handle_, msg);
+      } 
+    }
+    else {
+    LOG4CXX_ERROR(logger_,
+                  "USB incoming transfer inbuffer is null");
+    controller_->DataReceiveFailed(
+        device_uid_, app_handle_, DataReceiveError());
+    }
+  }
+  else {
     LOG4CXX_ERROR(logger_,
                   "USB incoming transfer failed: "
                       << libusb_error_name(transfer->status));
@@ -308,6 +374,7 @@ bool UsbConnection::Init() {
     return false;
   }
   in_buffer_ = new unsigned char[in_endpoint_max_packet_size_];
+  total_data_ = new unsigned char[in_endpoint_max_packet_size_*10];
   in_transfer_ = libusb_alloc_transfer(0);
   if (NULL == in_transfer_) {
     LOG4CXX_ERROR(logger_, "libusb_alloc_transfer failed");
