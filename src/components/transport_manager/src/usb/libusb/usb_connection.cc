@@ -156,11 +156,13 @@ void UsbConnection::OnInTransfer(libusb_transfer* transfer) {
         case 0x00://FRAME_TYPE_CONTROL
           LOG4CXX_DEBUG(logger_, "FRAME_TYPE_CONTROL");
           multimsg_ = false;
-          memcpy(total_data_, data, sizeof(*data) * transfer->actual_length);
+          total_data_size_ = sizeof(*data) * transfer->actual_length;
+          memcpy(total_data_, data, total_data_size_);
         case 0x01://FRAME_TYPE_SINGLE
           LOG4CXX_DEBUG(logger_, "FRAME_TYPE_SINGLE");
           multimsg_ = false;
-          memcpy(total_data_, data, sizeof(*data) * transfer->actual_length);
+          total_data_size_ = sizeof(*data) * transfer->actual_length;
+          memcpy(total_data_, data, total_data_size_);
         case 0x02://FRAME_TYPE_FIRST
           multimsg_ = true;
           memcpy(total_data_, data, sizeof(*data) * transfer->actual_length);
@@ -180,11 +182,9 @@ void UsbConnection::OnInTransfer(libusb_transfer* transfer) {
           device_uid_, app_handle_, DataReceiveError());
         }
       }
-
       delete[] data;
-
       if (multimsg_) {
-
+        //waiting for next frame data
       }
       else {
         //end of proposal sol
