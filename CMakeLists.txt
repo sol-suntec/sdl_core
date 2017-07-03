@@ -42,7 +42,11 @@ option(BUILD_BT_SUPPORT "Bluetooth support" ON)
 option(BUILD_USB_SUPPORT "libusb support" ON)
 option(BUILD_BACKTRACE_SUPPORT "backtrace support" ON)
 option(BUILD_TESTS "Possibility to build and run tests" OFF)
-option(TELEMETRY_MONITOR "Enable profiling time test util" ON)
+
+option(ENABLE_DEBUG_MODE "Enable Debug Mode" OFF)
+#Moudel of Debug Mode
+option(TELEMETRY_MONITOR "Enable profiling time test util" OFF)
+
 option(ENABLE_LOG "Logging feature" ON)
 option(ENABLE_GCOV "gcov code coverage feature" OFF)
 option(ENABLE_SANITIZE "Sanitize tool" OFF)
@@ -227,8 +231,10 @@ if(ENABLE_LOG)
   set(install-3rd_party_logger "install-3rd_party_logger")
 endif()
 
-if (TELEMETRY_MONITOR)
+if (ENABLE_DEBUG_MODE)
+  if (TELEMETRY_MONITOR)
     add_definitions(-DTELEMETRY_MONITOR)
+  endif()
 endif()
 
 if (ENABLE_EXTENDED_POLICY)
