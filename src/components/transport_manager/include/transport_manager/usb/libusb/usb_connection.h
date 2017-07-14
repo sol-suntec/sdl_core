@@ -90,6 +90,9 @@ class UsbConnection : public Connection {
   uint8_t serviceType_;
   uint8_t frameData_;
   
+  struct timeval last_time_;
+  struct timeval now_time_;
+  uint32_t packages_num_;
   std::list<protocol_handler::RawMessagePtr> out_messages_;
   protocol_handler::RawMessagePtr current_out_message_;
   sync_primitives::Lock out_messages_mutex_;
